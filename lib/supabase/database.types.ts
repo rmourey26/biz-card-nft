@@ -4,6 +4,7 @@ export type Database = {
       profiles: {
         Row: {
           id: string
+          updated_at: string | null
           user_id: string | null
           full_name: string | null
           username: string | null
@@ -17,10 +18,17 @@ export type Database = {
           waddress: string | null
           xhandle: string | null
           created_at: string | null
-          updated_at: string
+          public_id: string | null
+          public_access: boolean | null
+          card_style: {
+            backgroundColor: string
+            textColor: string
+            primaryColor: string
+          } | null
         }
         Insert: {
           id: string
+          updated_at?: string | null
           user_id?: string | null
           full_name?: string | null
           username?: string | null
@@ -34,10 +42,17 @@ export type Database = {
           waddress?: string | null
           xhandle?: string | null
           created_at?: string | null
-          updated_at?: string
+          public_id?: string | null
+          public_access?: boolean | null
+          card_style?: {
+            backgroundColor: string
+            textColor: string
+            primaryColor: string
+          } | null
         }
         Update: {
           id?: string
+          updated_at?: string | null
           user_id?: string | null
           full_name?: string | null
           username?: string | null
@@ -51,11 +66,80 @@ export type Database = {
           waddress?: string | null
           xhandle?: string | null
           created_at?: string | null
-          updated_at?: string
+          public_id?: string | null
+          public_access?: boolean | null
+          card_style?: {
+            backgroundColor: string
+            textColor: string
+            primaryColor: string
+          } | null
         }
       }
-      // Other tables remain the same
+      nfts: {
+        Row: {
+          id: string
+          user_id: string
+          profile_id: string
+          name: string
+          tx_hash: string
+          token_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          profile_id: string
+          name: string
+          tx_hash: string
+          token_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          profile_id?: string
+          name?: string
+          tx_hash?: string
+          token_id?: string
+          created_at?: string
+        }
+      }
+      sui_nfts: {
+        Row: {
+          id: string
+          user_id: string
+          profile_id: string
+          name: string
+          object_id: string
+          tx_digest: string
+          image_url: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          profile_id: string
+          name: string
+          object_id: string
+          tx_digest: string
+          image_url?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          profile_id?: string
+          name?: string
+          object_id?: string
+          tx_digest?: string
+          image_url?: string | null
+          created_at?: string
+        }
+      }
     }
+    Views: {}
+    Functions: {}
+    Enums: {}
   }
 }
 

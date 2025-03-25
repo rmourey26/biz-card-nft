@@ -2,35 +2,42 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { useToast } from "@/components/ui/use-toast"
 import { mintNFT } from "@/app/actions/nft"
+import { useToast } from "@/components/ui/use-toast"
+import { Loader2 } from "lucide-react"
 
 interface MintNFTButtonProps {
   userId: string
-  cardId: string
+  profileId: string
+  name: string
+  className?: string
 }
 
-export function MintNFTButton({ userId, cardId }: MintNFTButtonProps) {
+export function MintNFTButton({ userId, profileId, name, className }: MintNFTButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
 
   const handleMint = async () => {
     setIsLoading(true)
     try {
-      const result = await mintNFT(userId, cardId)
+      const result = await mintNFT({ userId, profileId, name })
       if (result.success) {
         toast({
-          title: "NFT Minted Successfully",
-          description: `Your business card has been minted as an NFT on the Base blockchain. Transaction hash: ${result.nft.tx_hash}`,
+          title: "NFT Minted",
+          description: "Your NFT has been successfully minted!",
         })
       } else {
-        throw new Error(result.error)
+        toast({
+          title: "Minting Failed",
+          description: result.error || "Failed to mint NFT. Please try again.",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("Error minting NFT:", error)
       toast({
-        title: "Error Minting NFT",
-        description: error instanceof Error ? error.message : "There was an error minting your NFT. Please try again.",
+        title: "Minting Failed",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -39,8 +46,15 @@ export function MintNFTButton({ userId, cardId }: MintNFTButtonProps) {
   }
 
   return (
-    <Button onClick={handleMint} disabled={isLoading}>
-      {isLoading ? "Minting..." : "Mint as NFT"}
+    <Button onClick={handleMint} disabled={isLoading} className={className}>
+      {isLoading ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Minting...
+        </>
+      ) : (
+        "Mint NFT"
+      )}
     </Button>
   )
 }

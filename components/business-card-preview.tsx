@@ -1,436 +1,220 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Image from "next/image"
-import { Button } from "@/components/ui/button"
-import { saveAs } from "file-saver"
-import QRCode from "qrcode"
-import { jsPDF } from "jspdf"
+import Link from "next/link"
 import {
   Mail,
   Globe,
-  Briefcase,
   LayoutGridIcon as LayoutHorizontal,
   LayoutGridIcon as LayoutVertical,
   Linkedin,
   Twitter,
-  BadgeCheck,
 } from "lucide-react"
 import { Toggle } from "@/components/ui/toggle"
 import { BusinessCardEditor } from "@/components/business-card-editor"
 import { useRouter } from "next/navigation"
+import { ColorPickerModal } from "@/components/color-picker-modal"
+import { ShareModal } from "@/components/share-modal"
+import { SaveContactButton } from "@/components/save-contact-button"
 
 interface BusinessCardPreviewProps {
-  card: {
+  profile: {
     id: string
-    businesscard_name: string
-    company_name: string
-    image_url: string
-    style: {
-      backgroundColor: string
-      textColor: string
-      primaryColor: string
-      backgroundImage?: string
-    }
-    user_id: string
-  }
-  userData: {
     full_name: string
     company: string
     job_title?: string
     email: string
     website: string
     linkedin_url?: string
-    avatar_url: string
-    company_logo_url: string
+    avatar_url?: string
+    company_logo_url?: string
     xhandle?: string
     waddress?: string
+    public_id?: string
+    card_style?: {
+      backgroundColor: string
+      textColor: string
+      primaryColor: string
+    }
   }
   showEditor?: boolean
+  isRecipient?: boolean
 }
 
-export function BusinessCardPreview({ card, userData, showEditor = true }: BusinessCardPreviewProps) {
-  const [imageLoaded, setImageLoaded] = useState(false)
+export function BusinessCardPreview({ profile, showEditor = true, isRecipient = false }: BusinessCardPreviewProps) {
+  // Default card style if not provided in profile
+  const defaultStyle = {
+    backgroundColor: "#ffffff",
+    textColor: "#333333",
+    primaryColor: "#3b82f6",
+  }
+
+  const cardStyle = profile.card_style || defaultStyle
+
   const [isVertical, setIsVertical] = useState(false)
+  const [backgroundColor, setBackgroundColor] = useState(cardStyle.backgroundColor)
   const router = useRouter()
 
-  useEffect(() => {
-    if (card.image_url) {
-      const img = new Image()
-      img.onload = () => setImageLoaded(true)
-      img.onerror = () => setImageLoaded(false)
-      img.src = card.image_url
-    }
-  }, [card.image_url])
-
-  // Generate vCard format for contact information
-  const generateVCard = () => {
-    let vCard = `BEGIN:VCARD
-VERSION:3.0
-FN:${userData.full_name}
-ORG:${userData.company}
-EMAIL:${userData.email}
-URL:${userData.website}`
-
-    if (userData.job_title) {
-      vCard += `
-TITLE:${userData.job_title}`
-    }
-
-    if (userData.linkedin_url) {
-      vCard += `
-X-SOCIALPROFILE;type=linkedin:${userData.linkedin_url}`
-    }
-
-    if (userData.xhandle) {
-      vCard += `
-X-SOCIALPROFILE;type=twitter:https://twitter.com/${userData.xhandle.replace("@", "")}`
-    }
-
-    vCard += `
-END:VCARD`
-    return vCard
-  }
-
-  const handleDownload = async () => {
-    // Set PDF dimensions based on orientation
-    const pdfOptions = isVertical
-      ? { orientation: "portrait", unit: "mm", format: [51, 89] }
-      : { orientation: "landscape", unit: "mm", format: [89, 51] }
-
-    const pdf = new jsPDF(pdfOptions)
-
-    // Create a canvas to draw the business card
-    const canvas = document.createElement("canvas")
-
-    // Set canvas dimensions based on orientation
-    if (isVertical) {
-      canvas.width = 510
-      canvas.height = 890
-    } else {
-      canvas.width = 890
-      canvas.height = 510
-    }
-
-    const ctx = canvas.getContext("2d")
-
-    if (ctx) {
-      // Draw background
-      ctx.fillStyle = card.style.backgroundColor
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-      // Draw background image if available
-      if (imageLoaded && card.image_url) {
-        const img = new Image()
-        img.crossOrigin = "anonymous"
-        await new Promise((resolve) => {
-          img.onload = resolve
-          img.src = card.image_url
-        })
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-      }
-
-      if (isVertical) {
-        // Draw company logo at the top (banner style)
-        if (userData.company_logo_url) {
-          const logo = new Image()
-          logo.crossOrigin = "anonymous"
-          await new Promise((resolve) => {
-            logo.onload = resolve
-            logo.src = userData.company_logo_url
-          })
-
-          // Calculate aspect ratio to preserve the full logo
-          const logoAspect = logo.width / logo.height
-          let logoWidth = 510
-          let logoHeight = logoWidth / logoAspect
-
-          // If logo is too tall, adjust height and center horizontally
-          if (logoHeight > 200) {
-            logoHeight = 200
-            logoWidth = logoHeight * logoAspect
-            // Center horizontally
-            const xOffset = (510 - logoWidth) / 2
-            ctx.drawImage(logo, xOffset, 0, logoWidth, logoHeight)
-          } else {
-            // Center horizontally
-            const xOffset = (510 - logoWidth) / 2
-            // Center vertically within the 200px banner area
-            const yOffset = (200 - logoHeight) / 2
-            ctx.drawImage(logo, xOffset, yOffset, logoWidth, logoHeight)
-          }
-
-          // Add a gradient overlay to make text more readable
-          const gradient = ctx.createLinearGradient(0, 0, 0, 200)
-          gradient.addColorStop(0, "rgba(0,0,0,0.1)")
-          gradient.addColorStop(1, "rgba(0,0,0,0.5)")
-          ctx.fillStyle = gradient
-          ctx.fillRect(0, 0, 510, 200)
-        }
-
-        // Draw avatar overlaying the top banner
-        if (userData.avatar_url) {
-          const avatar = new Image()
-          avatar.crossOrigin = "anonymous"
-          await new Promise((resolve) => {
-            avatar.onload = resolve
-            avatar.src = userData.avatar_url
-          })
-          // Position avatar to overlap the bottom of the banner
-          ctx.save()
-          ctx.beginPath()
-          ctx.arc(120, 180, 80, 0, Math.PI * 2, true)
-          ctx.closePath()
-          ctx.clip()
-          ctx.drawImage(avatar, 40, 100, 160, 160)
-          ctx.restore()
-
-          // Add a white border around the avatar
-          ctx.strokeStyle = "white"
-          ctx.lineWidth = 5
-          ctx.beginPath()
-          ctx.arc(120, 180, 80, 0, Math.PI * 2, true)
-          ctx.closePath()
-          ctx.stroke()
-        }
-
-        // Draw text
-        ctx.fillStyle = card.style.textColor
-
-        // Name
-        ctx.font = "bold 32px Arial"
-        ctx.textAlign = "left"
-        ctx.fillText(userData.full_name, 40, 320)
-
-        // Job Title
-        if (userData.job_title) {
-          ctx.font = "24px Arial"
-          ctx.fillText(userData.job_title, 40, 360)
-        }
-
-        // Company
-        ctx.font = "italic 24px Arial"
-        ctx.fillText(userData.company, 40, userData.job_title ? 400 : 360)
-
-        // Email
-        ctx.font = "20px Arial"
-        const emailY = userData.job_title ? 460 : 420
-        ctx.fillText(userData.email, 40, emailY)
-
-        // Website
-        const websiteY = userData.job_title ? 500 : 460
-        ctx.fillText(userData.website, 40, websiteY)
-
-        // LinkedIn
-        if (userData.linkedin_url) {
-          const linkedinY = userData.job_title ? 540 : 500
-          ctx.fillText(userData.linkedin_url, 40, linkedinY)
-        }
-
-        // X Handle
-        if (userData.xhandle) {
-          const xhandleY = userData.job_title ? (userData.linkedin_url ? 580 : 540) : userData.linkedin_url ? 540 : 500
-          ctx.fillText(userData.xhandle, 40, xhandleY)
-        }
-      } else {
-        // Horizontal layout
-        // Draw company logo if available
-        if (userData.company_logo_url) {
-          const logo = new Image()
-          logo.crossOrigin = "anonymous"
-          await new Promise((resolve) => {
-            logo.onload = resolve
-            logo.src = userData.company_logo_url
-          })
-
-          // Calculate aspect ratio to preserve the full logo
-          const logoAspect = logo.width / logo.height
-          let logoWidth = 150
-          let logoHeight = logoWidth / logoAspect
-
-          // If logo is too tall, adjust height
-          if (logoHeight > 150) {
-            logoHeight = 150
-            logoWidth = logoHeight * logoAspect
-          }
-
-          // Position in top right
-          ctx.drawImage(logo, 890 - logoWidth - 20, 20, logoWidth, logoHeight)
-        }
-
-        // Draw avatar if available
-        if (userData.avatar_url) {
-          const avatar = new Image()
-          avatar.crossOrigin = "anonymous"
-          await new Promise((resolve) => {
-            avatar.onload = resolve
-            avatar.src = userData.avatar_url
-          })
-          ctx.drawImage(avatar, 40, 40, 120, 120)
-        }
-
-        // Draw text
-        ctx.fillStyle = card.style.textColor
-
-        // Name
-        ctx.font = "bold 36px Arial"
-        ctx.textAlign = "left"
-        ctx.fillText(userData.full_name, 200, 100)
-
-        // Job Title
-        if (userData.job_title) {
-          ctx.font = "24px Arial"
-          ctx.fillText(userData.job_title, 200, 140)
-        }
-
-        // Company
-        ctx.font = "italic 24px Arial"
-        ctx.fillText(userData.company, 200, userData.job_title ? 180 : 140)
-
-        // Email
-        ctx.font = "20px Arial"
-        const emailY = userData.job_title ? 240 : 200
-        ctx.fillText(userData.email, 200, emailY)
-
-        // Website
-        const websiteY = userData.job_title ? 280 : 240
-        ctx.fillText(userData.website, 200, websiteY)
-
-        // LinkedIn
-        if (userData.linkedin_url) {
-          const linkedinY = userData.job_title ? 320 : 280
-          ctx.fillText(userData.linkedin_url, 200, linkedinY)
-        }
-
-        // X Handle
-        if (userData.xhandle) {
-          const xhandleY = userData.job_title ? (userData.linkedin_url ? 360 : 320) : userData.linkedin_url ? 320 : 280
-          ctx.fillText(userData.xhandle, 200, xhandleY)
-        }
-      }
-    }
-
-    // Add the canvas content to the PDF
-    pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, isVertical ? 51 : 89, isVertical ? 89 : 51)
-    pdf.save(`${userData.full_name}-business-card.pdf`)
-  }
-
-  const handleShareQR = async () => {
-    // Generate QR code with vCard data for contact saving
-    const vCardData = generateVCard()
-    const qr = await QRCode.toDataURL(vCardData)
-    saveAs(qr, `${userData.full_name}-contact-qr.png`)
-  }
+  // Generate the profile URL for sharing
+  const profileUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/p/${profile.public_id || profile.id}`
+      : `${process.env.NEXT_PUBLIC_APP_URL || "https://cardchain.app"}/p/${profile.public_id || profile.id}`
 
   const handleEditorUpdate = () => {
     router.refresh()
   }
 
+  // Format website URL for display and linking
+  const formatWebsiteForDisplay = (website: string) => {
+    return website.replace(/^https?:\/\//, "").replace(/\/$/, "")
+  }
+
+  // Ensure website has http/https for linking
+  const formatWebsiteForLink = (website: string) => {
+    if (!website) return "#"
+    return website.startsWith("http") ? website : `https://${website}`
+  }
+
+  // Format LinkedIn URL for display
+  const formatLinkedInForDisplay = (url: string) => {
+    if (!url) return ""
+    return url.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//, "").replace(/\/$/, "")
+  }
+
   // Render horizontal business card layout
   const renderHorizontalCard = () => (
-    <div
-      className="w-full max-w-[890px] mx-auto aspect-[890/510] rounded-lg shadow-lg relative overflow-hidden"
-      style={{
-        backgroundColor: card.style.backgroundColor,
-        backgroundImage: card.image_url ? `url(${card.image_url})` : "none",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }}
-    >
-      {/* Editor Button */}
-      {showEditor && (
-        <BusinessCardEditor
-          userId={card.user_id}
-          cardId={card.id}
-          initialData={userData}
-          onUpdate={handleEditorUpdate}
-        />
-      )}
+    <div className="w-full max-w-[890px] mx-auto aspect-[890/510] rounded-lg shadow-lg relative overflow-hidden">
+      {/* Background layer */}
+      <div
+        className="absolute inset-0 z-0"
+        style={{
+          backgroundColor: backgroundColor,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      />
 
-      {/* Company Logo */}
-      {userData.company_logo_url && (
-        <div className="absolute top-[3.9%] right-[2.2%] w-[16.9%] h-[29.4%]">
-          <Image
-            src={userData.company_logo_url || "/placeholder.svg"}
-            alt="Company Logo"
-            fill
-            className="object-contain"
-          />
-        </div>
-      )}
-
-      {/* Left side content */}
-      <div className="absolute top-0 left-0 h-full p-[5.6%] flex flex-col justify-center">
-        {/* Avatar */}
-        {userData.avatar_url && (
-          <div className="mb-[5.6%]">
-            <div className="relative w-[120px] h-[120px] sm:w-[100px] sm:h-[100px] xs:w-[80px] xs:h-[80px]">
-              <Image
-                src={userData.avatar_url || "/placeholder.svg"}
-                alt="User Avatar"
-                fill
-                className="rounded-full object-cover"
-              />
-            </div>
+      {/* Content layer - all elements will be on top of the background */}
+      <div className="absolute inset-0 z-10">
+        {/* Editor Button - positioned outside the content layer with higher z-index */}
+        {showEditor && (
+          <div className="absolute top-0 right-0 z-30">
+            <BusinessCardEditor userId={profile.id} initialData={profile} onUpdate={handleEditorUpdate} />
           </div>
         )}
 
-        {/* Contact Information */}
-        <div className="space-y-[3.9%]">
-          <h2 className="text-4xl font-bold sm:text-3xl xs:text-2xl" style={{ color: card.style.primaryColor }}>
-            {userData.full_name}
-          </h2>
+        {/* Company Logo */}
+        {profile.company_logo_url && (
+          <div className="absolute top-[3.9%] right-[2.2%] w-[16.9%] h-[29.4%] z-10">
+            <Image
+              src={profile.company_logo_url || "/placeholder.svg"}
+              alt="Company Logo"
+              fill
+              className="object-contain"
+            />
+          </div>
+        )}
 
-          {/* Job Title */}
-          {userData.job_title && (
-            <div className="flex items-center space-x-2">
-              <BadgeCheck className="w-5 h-5 flex-shrink-0" style={{ color: card.style.textColor }} />
-              <p className="text-xl sm:text-lg xs:text-base" style={{ color: card.style.textColor }}>
-                {userData.job_title}
-              </p>
+        {/* Left side content */}
+        <div className="absolute top-0 left-0 h-full p-[5.6%] flex flex-col justify-center">
+          {/* Avatar */}
+          {profile.avatar_url && (
+            <div className="mb-[5.6%]">
+              <div className="relative w-[120px] h-[120px] sm:w-[100px] sm:h-[100px] xs:w-[80px] xs:h-[80px]">
+                <Image
+                  src={profile.avatar_url || "/placeholder.svg"}
+                  alt="User Avatar"
+                  fill
+                  className="rounded-full object-cover"
+                />
+              </div>
             </div>
           )}
 
-          <div className="flex items-center space-x-2">
-            <Briefcase className="w-5 h-5 flex-shrink-0" style={{ color: card.style.textColor }} />
-            <p className="text-xl italic sm:text-lg xs:text-base" style={{ color: card.style.textColor }}>
-              {userData.company}
-            </p>
-          </div>
+          {/* Contact Information */}
+          <div className="space-y-[3.9%]">
+            <h2 className="text-4xl font-bold sm:text-3xl xs:text-2xl" style={{ color: cardStyle.primaryColor }}>
+              {profile.full_name}
+            </h2>
 
-          <div className="flex items-center space-x-2">
-            <Mail className="w-5 h-5 flex-shrink-0" style={{ color: card.style.textColor }} />
-            <p className="text-lg sm:text-base xs:text-sm break-all" style={{ color: card.style.textColor }}>
-              {userData.email}
-            </p>
-          </div>
+            {/* Job Title */}
+            {profile.job_title && (
+              <div>
+                <p className="text-2xl sm:text-xl xs:text-lg" style={{ color: cardStyle.textColor }}>
+                  {profile.job_title}
+                </p>
+              </div>
+            )}
 
-          <div className="flex items-center space-x-2">
-            <Globe className="w-5 h-5 flex-shrink-0" style={{ color: card.style.textColor }} />
-            <p className="text-lg sm:text-base xs:text-sm break-all" style={{ color: card.style.textColor }}>
-              {userData.website}
-            </p>
-          </div>
-
-          {/* LinkedIn */}
-          {userData.linkedin_url && (
-            <div className="flex items-center space-x-2">
-              <Linkedin className="w-5 h-5 flex-shrink-0" style={{ color: card.style.textColor }} />
-              <p className="text-lg sm:text-base xs:text-sm break-all" style={{ color: card.style.textColor }}>
-                {userData.linkedin_url}
+            {/* Company */}
+            <div className="mb-2">
+              <p className="text-2xl sm:text-xl xs:text-lg" style={{ color: cardStyle.textColor }}>
+                {profile.company}
               </p>
             </div>
-          )}
 
-          {/* X Handle */}
-          {userData.xhandle && (
             <div className="flex items-center space-x-2">
-              <Twitter className="w-5 h-5 flex-shrink-0" style={{ color: card.style.textColor }} />
-              <p className="text-lg sm:text-base xs:text-sm" style={{ color: card.style.textColor }}>
-                {userData.xhandle}
-              </p>
+              <Mail className="w-5 h-5 flex-shrink-0" style={{ color: cardStyle.textColor }} />
+              <Link
+                href={`mailto:${profile.email}`}
+                className="text-lg sm:text-base xs:text-sm break-all hover:underline"
+                style={{ color: cardStyle.textColor }}
+                aria-label={`Send email to ${profile.email}`}
+              >
+                {profile.email}
+              </Link>
             </div>
-          )}
+
+            <div className="flex items-center space-x-2">
+              <Globe className="w-5 h-5 flex-shrink-0" style={{ color: cardStyle.textColor }} />
+              <Link
+                href={formatWebsiteForLink(profile.website)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-lg sm:text-base xs:text-sm break-all hover:underline"
+                style={{ color: cardStyle.textColor }}
+                aria-label={`Visit website ${profile.website}`}
+              >
+                {formatWebsiteForDisplay(profile.website)}
+              </Link>
+            </div>
+
+            {/* LinkedIn */}
+            {profile.linkedin_url && (
+              <div className="flex items-center space-x-2">
+                <Linkedin className="w-5 h-5 flex-shrink-0" style={{ color: cardStyle.textColor }} />
+                <Link
+                  href={profile.linkedin_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-lg sm:text-base xs:text-sm break-all hover:underline"
+                  style={{ color: cardStyle.textColor }}
+                  aria-label={`Visit LinkedIn profile`}
+                >
+                  {formatLinkedInForDisplay(profile.linkedin_url)}
+                </Link>
+              </div>
+            )}
+
+            {/* X Handle */}
+            {profile.xhandle && (
+              <div className="flex items-center space-x-2">
+                <Twitter className="w-5 h-5 flex-shrink-0" style={{ color: cardStyle.textColor }} />
+                <Link
+                  href={`https://x.com/${profile.xhandle.replace("@", "")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-lg sm:text-base xs:text-sm hover:underline"
+                  style={{ color: cardStyle.textColor }}
+                  aria-label={`Visit X profile`}
+                >
+                  {profile.xhandle}
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -438,103 +222,130 @@ END:VCARD`
 
   // Render vertical business card layout
   const renderVerticalCard = () => (
-    <div
-      className="w-full max-w-[510px] mx-auto aspect-[510/890] rounded-lg shadow-lg relative overflow-hidden"
-      style={{
-        backgroundColor: card.style.backgroundColor,
-        backgroundImage: card.image_url ? `url(${card.image_url})` : "none",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }}
-    >
-      {/* Editor Button */}
-      {showEditor && (
-        <BusinessCardEditor
-          userId={card.user_id}
-          cardId={card.id}
-          initialData={userData}
-          onUpdate={handleEditorUpdate}
-        />
-      )}
+    <div className="w-full max-w-[510px] mx-auto aspect-[510/890] rounded-lg shadow-lg relative overflow-hidden">
+      {/* Background layer */}
+      <div
+        className="absolute inset-0 z-0"
+        style={{
+          backgroundColor: backgroundColor,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      />
 
-      {/* Company Logo Banner */}
-      {userData.company_logo_url && (
-        <div className="relative w-full h-[22.5%] flex items-center justify-center overflow-hidden">
-          <Image
-            src={userData.company_logo_url || "/placeholder.svg"}
-            alt="Company Logo"
-            fill
-            className="object-contain"
-            style={{ objectPosition: "center" }}
-          />
-          {/* Gradient overlay for better text visibility */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/10 to-black/50"></div>
-        </div>
-      )}
-
-      {/* Avatar overlaying the banner */}
-      {userData.avatar_url && (
-        <div className="absolute top-[11.2%] left-[7.8%] w-[31.4%] h-[18%] rounded-full border-4 border-white overflow-hidden shadow-lg">
-          <Image src={userData.avatar_url || "/placeholder.svg"} alt="User Avatar" fill className="object-cover" />
-        </div>
-      )}
-
-      {/* Contact Information */}
-      <div className="absolute top-[31.5%] left-0 w-full px-[7.8%] space-y-[2.5%]">
-        <h2 className="text-4xl font-bold sm:text-3xl xs:text-2xl" style={{ color: card.style.primaryColor }}>
-          {userData.full_name}
-        </h2>
-
-        {/* Job Title */}
-        {userData.job_title && (
-          <div className="flex items-center space-x-2">
-            <BadgeCheck className="w-5 h-5 flex-shrink-0" style={{ color: card.style.textColor }} />
-            <p className="text-xl sm:text-lg xs:text-base" style={{ color: card.style.textColor }}>
-              {userData.job_title}
-            </p>
+      {/* Content layer - all elements will be on top of the background */}
+      <div className="absolute inset-0 z-10">
+        {/* Editor Button - positioned outside the content layer with higher z-index */}
+        {showEditor && (
+          <div className="absolute top-0 right-0 z-30">
+            <BusinessCardEditor userId={profile.id} initialData={profile} onUpdate={handleEditorUpdate} />
           </div>
         )}
 
-        <div className="flex items-center space-x-2">
-          <Briefcase className="w-5 h-5 flex-shrink-0" style={{ color: card.style.textColor }} />
-          <p className="text-xl italic sm:text-lg xs:text-base" style={{ color: card.style.textColor }}>
-            {userData.company}
-          </p>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Mail className="w-5 h-5 flex-shrink-0" style={{ color: card.style.textColor }} />
-          <p className="text-lg sm:text-base xs:text-sm break-all" style={{ color: card.style.textColor }}>
-            {userData.email}
-          </p>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Globe className="w-5 h-5 flex-shrink-0" style={{ color: card.style.textColor }} />
-          <p className="text-lg sm:text-base xs:text-sm break-all" style={{ color: card.style.textColor }}>
-            {userData.website}
-          </p>
-        </div>
-
-        {/* LinkedIn */}
-        {userData.linkedin_url && (
-          <div className="flex items-center space-x-2">
-            <Linkedin className="w-5 h-5 flex-shrink-0" style={{ color: card.style.textColor }} />
-            <p className="text-lg sm:text-base xs:text-sm break-all" style={{ color: card.style.textColor }}>
-              {userData.linkedin_url}
-            </p>
+        {/* Company Logo Banner */}
+        {profile.company_logo_url && (
+          <div className="relative w-full h-[22.5%] flex items-center justify-center overflow-hidden z-10">
+            <Image
+              src={profile.company_logo_url || "/placeholder.svg"}
+              alt="Company Logo"
+              fill
+              className="object-contain"
+              style={{ objectPosition: "center" }}
+            />
+            {/* Gradient overlay for better text visibility */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/10 to-black/50"></div>
           </div>
         )}
 
-        {/* X Handle */}
-        {userData.xhandle && (
-          <div className="flex items-center space-x-2">
-            <Twitter className="w-5 h-5 flex-shrink-0" style={{ color: card.style.textColor }} />
-            <p className="text-lg sm:text-base xs:text-sm" style={{ color: card.style.textColor }}>
-              {userData.xhandle}
-            </p>
+        {/* Avatar overlaying the banner */}
+        {profile.avatar_url && (
+          <div className="absolute top-[11.2%] left-[7.8%] w-[31.4%] h-[18%] rounded-full border-4 border-white overflow-hidden shadow-lg z-20">
+            <Image src={profile.avatar_url || "/placeholder.svg"} alt="User Avatar" fill className="object-cover" />
           </div>
         )}
+
+        {/* Contact Information */}
+        <div className="absolute top-[31.5%] left-0 w-full px-[7.8%] space-y-[2.5%] z-10">
+          <h2 className="text-4xl font-bold sm:text-3xl xs:text-2xl" style={{ color: cardStyle.primaryColor }}>
+            {profile.full_name}
+          </h2>
+
+          {/* Job Title */}
+          {profile.job_title && (
+            <div>
+              <p className="text-2xl sm:text-xl xs:text-lg" style={{ color: cardStyle.textColor }}>
+                {profile.job_title}
+              </p>
+            </div>
+          )}
+
+          {/* Company */}
+          <div className="mb-4">
+            <p className="text-2xl sm:text-xl xs:text-lg" style={{ color: cardStyle.textColor }}>
+              {profile.company}
+            </p>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Mail className="w-5 h-5 flex-shrink-0" style={{ color: cardStyle.textColor }} />
+            <Link
+              href={`mailto:${profile.email}`}
+              className="text-lg sm:text-base xs:text-sm break-all hover:underline"
+              style={{ color: cardStyle.textColor }}
+              aria-label={`Send email to ${profile.email}`}
+            >
+              {profile.email}
+            </Link>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Globe className="w-5 h-5 flex-shrink-0" style={{ color: cardStyle.textColor }} />
+            <Link
+              href={formatWebsiteForLink(profile.website)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-lg sm:text-base xs:text-sm break-all hover:underline"
+              style={{ color: cardStyle.textColor }}
+              aria-label={`Visit website ${profile.website}`}
+            >
+              {formatWebsiteForDisplay(profile.website)}
+            </Link>
+          </div>
+
+          {/* LinkedIn */}
+          {profile.linkedin_url && (
+            <div className="flex items-center space-x-2">
+              <Linkedin className="w-5 h-5 flex-shrink-0" style={{ color: cardStyle.textColor }} />
+              <Link
+                href={profile.linkedin_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-lg sm:text-base xs:text-sm break-all hover:underline"
+                style={{ color: cardStyle.textColor }}
+                aria-label={`Visit LinkedIn profile`}
+              >
+                {formatLinkedInForDisplay(profile.linkedin_url)}
+              </Link>
+            </div>
+          )}
+
+          {/* X Handle */}
+          {profile.xhandle && (
+            <div className="flex items-center space-x-2">
+              <Twitter className="w-5 h-5 flex-shrink-0" style={{ color: cardStyle.textColor }} />
+              <Link
+                href={`https://x.com/${profile.xhandle.replace("@", "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-lg sm:text-base xs:text-sm hover:underline"
+                style={{ color: cardStyle.textColor }}
+                aria-label={`Visit X profile`}
+              >
+                {profile.xhandle}
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -560,9 +371,23 @@ END:VCARD`
         {isVertical ? renderVerticalCard() : renderHorizontalCard()}
       </div>
 
+      {/* Action buttons */}
       <div className="flex flex-wrap justify-center gap-4 mt-2">
-        <Button onClick={handleDownload}>Download PDF</Button>
-        <Button onClick={handleShareQR}>Share Contact QR</Button>
+        {/* Show different buttons based on whether the user is the owner or a recipient */}
+        {isRecipient ? (
+          <SaveContactButton userData={profile} />
+        ) : (
+          <>
+            <ColorPickerModal
+              profileId={profile.id}
+              initialColor={backgroundColor}
+              onColorChange={setBackgroundColor}
+              initialTextColor={cardStyle.textColor}
+              initialPrimaryColor={cardStyle.primaryColor}
+            />
+            <ShareModal profileId={profile.id} profileUrl={profileUrl} userData={profile} />
+          </>
+        )}
       </div>
     </div>
   )

@@ -4,6 +4,8 @@ import Image from "next/image"
 import { ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Navbar } from "@/components/navbar"
+import { AppInstallBanner } from "@/components/app-install-banner"
+import { PWARegister } from "@/components/pwa-register"
 
 export const metadata: Metadata = {
   title: "Home | Digital Business Card NFT",
@@ -171,6 +173,10 @@ export default function HomePage() {
           </Link>
         </nav>
       </footer>
+
+      {/* PWA Components */}
+      <AppInstallBanner />
+      <PWARegister />
     </div>
   )
 }

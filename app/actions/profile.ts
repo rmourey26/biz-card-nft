@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
+import { v4 as uuidv4 } from "uuid"
 
 // Get profile function
 export async function getProfile(userId: string) {
@@ -34,6 +35,22 @@ export async function getProfile(userId: string) {
         company_logo_url: userData.user?.user_metadata?.company_logo_url || "",
         waddress: userData.user?.user_metadata?.waddress || "",
         xhandle: userData.user?.user_metadata?.xhandle || "",
+        public_id: null,
+        public_access: true,
+        card_style: {
+          backgroundColor: "#ffffff",
+          textColor: "#333333",
+          primaryColor: "#3b82f6",
+        },
+      }
+    }
+
+    // Ensure card_style exists
+    if (!data.card_style) {
+      data.card_style = {
+        backgroundColor: "#ffffff",
+        textColor: "#333333",
+        primaryColor: "#3b82f6",
       }
     }
 
@@ -54,13 +71,21 @@ export async function getProfile(userId: string) {
       company_logo_url: "",
       waddress: "",
       xhandle: "",
+      public_id: null,
+      public_access: true,
+      card_style: {
+        backgroundColor: "#ffffff",
+        textColor: "#333333",
+        primaryColor: "#3b82f6",
+      },
     }
   }
 }
 
 // Update profile function
-export async function updateProfile(userId: string, profileData: any) {
+export async function updateProfile(profileData: any) {
   const supabase = createServerSupabaseClient()
+  const userId = profileData.id
 
   try {
     // Basic validation
@@ -94,12 +119,13 @@ export async function updateProfile(userId: string, profileData: any) {
       waddress: profileData.waddress || "",
       xhandle: profileData.xhandle || "",
       updated_at: new Date().toISOString(),
+      public_access: true, // Ensure public access is enabled
     }
 
     // First check if profile exists
     const { data: existingProfile, error: checkError } = await supabase
       .from("profiles")
-      .select("id")
+      .select("id, public_id, card_style")
       .eq("id", userId)
       .maybeSingle()
 
@@ -109,13 +135,20 @@ export async function updateProfile(userId: string, profileData: any) {
     }
 
     if (!existingProfile) {
-      // Profile doesn't exist, create it
+      // Profile doesn't exist, create it with a new public_id and default card style
       console.log("Creating new profile for user:", userId)
+      const public_id = uuidv4()
       const { error: insertError } = await supabase.from("profiles").insert({
         id: userId,
         user_id: userId,
         ...updatedProfile,
+        public_id,
         created_at: new Date().toISOString(),
+        card_style: {
+          backgroundColor: "#ffffff",
+          textColor: "#333333",
+          primaryColor: "#3b82f6",
+        },
       })
 
       if (insertError) {
@@ -123,8 +156,21 @@ export async function updateProfile(userId: string, profileData: any) {
         return { success: false, error: "Error creating profile" }
       }
     } else {
-      // Profile exists, update it
+      // Profile exists, update it (keep existing public_id and card_style)
       console.log("Updating profile for user:", userId)
+
+      // Preserve existing card_style if it exists
+      if (existingProfile.card_style) {
+        updatedProfile.card_style = existingProfile.card_style
+      } else {
+        // Add default card_style if it doesn't exist
+        updatedProfile.card_style = {
+          backgroundColor: "#ffffff",
+          textColor: "#333333",
+          primaryColor: "#3b82f6",
+        }
+      }
+
       const { error: updateError } = await supabase.from("profiles").update(updatedProfile).eq("id", userId)
 
       if (updateError) {
@@ -154,28 +200,6 @@ export async function updateProfile(userId: string, profileData: any) {
       // Continue even if metadata update fails
     }
 
-    // Update business cards with the new company and website information
-    try {
-      const { data: cards, error: cardsError } = await supabase
-        .from("business_cards")
-        .select("id")
-        .eq("user_id", userId)
-
-      if (!cardsError && cards && cards.length > 0) {
-        // Update all business cards for this user
-        await supabase
-          .from("business_cards")
-          .update({
-            company_name: profileData.company || "",
-            website: website || "",
-          })
-          .eq("user_id", userId)
-      }
-    } catch (cardsError) {
-      console.error("Error updating business cards:", cardsError)
-      // Continue even if business card updates fail
-    }
-
     revalidatePath("/profile")
     revalidatePath("/dashboard")
     return { success: true }
@@ -184,6 +208,56 @@ export async function updateProfile(userId: string, profileData: any) {
     return {
       success: false,
       error: "An unexpected error occurred while updating your profile",
+    }
+  }
+}
+
+// Update profile style function
+export async function updateProfileStyle(profileId: string, styleData: any) {
+  const supabase = createServerSupabaseClient()
+
+  try {
+    // Get current profile data
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("card_style")
+      .eq("id", profileId)
+      .single()
+
+    if (profileError) {
+      console.error("Error fetching profile:", profileError)
+      throw new Error("Failed to fetch profile")
+    }
+
+    // Merge existing style with new style data
+    const updatedStyle = {
+      ...(profile.card_style || {
+        backgroundColor: "#ffffff",
+        textColor: "#333333",
+        primaryColor: "#3b82f6",
+      }),
+      ...styleData,
+    }
+
+    // Update the profile with the new style
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ card_style: updatedStyle })
+      .eq("id", profileId)
+
+    if (updateError) {
+      console.error("Error updating profile style:", updateError)
+      throw new Error("Failed to update profile style")
+    }
+
+    revalidatePath("/profile")
+    revalidatePath("/dashboard")
+    return { success: true }
+  } catch (error) {
+    console.error("Error in updateProfileStyle:", error)
+    return {
+      success: false,
+      error: "An unexpected error occurred while updating your profile style",
     }
   }
 }

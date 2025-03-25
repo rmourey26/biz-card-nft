@@ -2,72 +2,97 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
 export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
+  // Create a response object that we can modify
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
   })
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
-          })
-          cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
+  // Check if the route should be publicly accessible
+  const isPublicRoute =
+    request.nextUrl.pathname.startsWith("/p/") ||
+    request.nextUrl.pathname.startsWith("/api/check-profile") ||
+    request.nextUrl.pathname.startsWith("/api/debug-profile") ||
+    request.nextUrl.pathname.startsWith("/api/fix-profiles") ||
+    request.nextUrl.pathname.startsWith("/api/fix-specific-profile") ||
+    request.nextUrl.pathname === "/test-public-card" ||
+    request.nextUrl.pathname === "/login" ||
+    request.nextUrl.pathname === "/signup" ||
+    request.nextUrl.pathname === "/" ||
+    request.nextUrl.pathname.match(/\.(ico|png|jpg|jpeg|svg|css|js)$/)
+
+  // If it's a public route, allow access without authentication
+  if (isPublicRoute) {
+    console.log("Allowing access to public route without authentication:", request.nextUrl.pathname)
+    return response
+  }
+
+  // For protected routes, check authentication
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return request.cookies.get(name)?.value
+          },
+          set(name: string, value: string, options: any) {
+            request.cookies.set({
+              name,
+              value,
+              ...options,
+            })
+            response = NextResponse.next({
+              request: {
+                headers: request.headers,
+              },
+            })
+            response.cookies.set({
+              name,
+              value,
+              ...options,
+            })
+          },
+          remove(name: string, options: any) {
+            request.cookies.set({
+              name,
+              value: "",
+              ...options,
+            })
+            response = NextResponse.next({
+              request: {
+                headers: request.headers,
+              },
+            })
+            response.cookies.set({
+              name,
+              value: "",
+              ...options,
+            })
+          },
         },
       },
-    },
-  )
+    )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  if (!user && !request.nextUrl.pathname.startsWith("/login") && !request.nextUrl.pathname.startsWith("/signup")) {
+    // If user is not authenticated, redirect to login
+    if (!user) {
+      return NextResponse.redirect(new URL("/login", request.url))
+    }
+
+    return response
+  } catch (error) {
+    console.error("Error in middleware:", error)
     return NextResponse.redirect(new URL("/login", request.url))
   }
-
-  // If user exists but we're not on a protected route, continue
-  if (user) {
-    // Check if profile exists, if not, create it (this helps with existing users)
-    try {
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("id", user.id)
-        .single()
-
-      if (profileError && profileError.code === "PGRST116") {
-        // Profile doesn't exist, create it
-        await supabase.from("profiles").insert({
-          id: user.id,
-          user_id: user.id,
-          full_name: user.user_metadata.full_name || "",
-          email: user.email,
-          company: user.user_metadata.company || "",
-          website: user.user_metadata.website || "",
-          avatar_url: user.user_metadata.avatar_url || "",
-          company_logo_url: user.user_metadata.company_logo_url || "",
-          username: (user.user_metadata.full_name || "user").toLowerCase().replace(/\s+/g, "_"),
-          updated_at: new Date().toISOString(),
-        })
-      }
-    } catch (error) {
-      console.error("Error checking/creating profile in middleware:", error)
-      // Continue even if profile check/creation fails
-    }
-  }
-
-  return supabaseResponse
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 }
 
