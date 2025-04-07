@@ -6,31 +6,21 @@ import { TransactionBlock } from "@mysten/sui.js/transactions"
 import { revalidatePath } from "next/cache"
 
 export async function mintSuiNFT({
-  profileId,
   name,
   description,
+  url,
   imageUrl,
+  walletAddress,
 }: {
-  profileId: string
   name: string
   description: string
+  url: string
   imageUrl: string
+  walletAddress: string
 }) {
   const supabase = createServerSupabaseClient()
 
   try {
-    // Get the profile
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", profileId)
-      .single()
-
-    if (profileError || !profile) {
-      console.error("Error fetching profile:", profileError)
-      return { success: false, error: "Failed to fetch profile" }
-    }
-
     // Create a Sui client
     const suiClient = createSuiClient()
 
@@ -58,28 +48,14 @@ export async function mintSuiNFT({
 
     // For demo purposes, generate a fake object ID
     const objectId = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`
-
-    // Save the NFT to the database
-    const { data: nftData, error: nftError } = await supabase
-      .from("sui_nfts")
-      .insert({
-        profile_id: profileId,
-        user_id: profile.user_id,
-        name,
-        object_id: objectId,
-        tx_digest: `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`,
-        image_url: imageUrl,
-      })
-      .select()
-      .single()
-
-    if (nftError) {
-      console.error("Error saving NFT:", nftError)
-      return { success: false, error: "Failed to save NFT" }
-    }
+    const txDigest = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`
 
     revalidatePath("/dashboard")
-    return { success: true, nft: nftData }
+    return {
+      success: true,
+      objectId,
+      txDigest,
+    }
   } catch (error) {
     console.error("Error in mintSuiNFT:", error)
     return {

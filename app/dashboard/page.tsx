@@ -4,7 +4,9 @@ import { DashboardClient } from "./dashboard-client"
 import { Navbar } from "@/components/navbar"
 import { getProfile } from "@/app/actions/profile"
 
+// Add export const dynamic = 'force-dynamic' to prevent static prerendering
 export const dynamic = "force-dynamic"
+
 export const revalidate = 0
 
 export default async function DashboardPage() {

@@ -2,9 +2,10 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Menu, X } from "lucide-react"
+import { Menu, X } from "lucide-react" // Import Menu and X
 import { Button } from "@/components/ui/button"
 import { usePathname } from "next/navigation"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet" // Import Sheet
 
 interface NavbarProps {
   showAuth?: boolean
@@ -31,6 +32,8 @@ export function Navbar({ showAuth = true, isLoggedIn = false }: NavbarProps) {
   const authItems = isLoggedIn
     ? [
         { label: "Dashboard", href: "/dashboard" },
+        { label: "CRM", href: "/admin/crm" },
+        { label: "AI Suite", href: "/ai-suite" }, // Add AI Suite link
         { label: "Profile", href: "/profile" },
       ]
     : [
@@ -41,81 +44,79 @@ export function Navbar({ showAuth = true, isLoggedIn = false }: NavbarProps) {
   const allItems = showAuth ? [...navItems, ...authItems] : navItems
 
   return (
-    <header className="px-4 lg:px-6 h-14 flex items-center border-b w-full">
-      <Link className="flex items-center justify-center" href="/">
-        <span className="font-bold text-xl">CardChain</span>
-      </Link>
+    <header className="bg-white border-b">
+      <div className="container flex h-16 items-center justify-between px-4 md:px-6">
+        <Link href="/" className="flex items-center gap-2">
+          <svg
+            className="h-6 w-6"
+            fill="none"
+            height="24"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <rect height="16" rx="2" width="20" x="2" y="4" />
+            <path d="M22 7H2" />
+            <path d="M18 14h-8" />
+            <path d="M18 11h-6" />
+            <path d="M8 11H6" />
+            <path d="M8 14H6" />
+          </svg>
+          <span className="text-xl font-bold">Card0</span>
+        </Link>
 
-      {/* Desktop Navigation */}
-      <nav className="ml-auto hidden md:flex gap-4 sm:gap-6">
-        {navItems.map((item) => (
-          <Link key={item.href} className="text-sm font-medium hover:underline underline-offset-4" href={item.href}>
-            {item.label}
-          </Link>
-        ))}
-
-        {showAuth && (
-          <>
-            {isLoggedIn ? (
-              <>
-                <Link className="text-sm font-medium hover:underline underline-offset-4" href="/dashboard">
-                  Dashboard
+        {/* Mobile Menu Button */}
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="ghost" className="lg:hidden">
+              {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="right" className="w-full max-w-xs">
+            <div className="flex flex-col h-full justify-center space-y-4 p-4">
+              {" "}
+              {/* Added padding */}
+              {allItems.map((item) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  onClick={closeMenu}
+                  className="text-sm font-medium hover:underline underline-offset-4"
+                >
+                  {item.label}
                 </Link>
-                <Link className="text-sm font-medium hover:underline underline-offset-4" href="/profile">
-                  Profile
-                </Link>
-                <form action="/auth/signout" method="post">
+              ))}
+              {isLoggedIn && (
+                <form action="/api/auth/signout" method="post">
                   <Button variant="outline" size="sm" type="submit">
                     Sign Out
                   </Button>
                 </form>
-              </>
-            ) : (
-              <>
-                <Link className="text-sm font-medium hover:underline underline-offset-4" href="/login">
-                  Login
-                </Link>
-                <Link className="text-sm font-medium hover:underline underline-offset-4" href="/signup">
-                  Sign Up
-                </Link>
-              </>
-            )}
-          </>
-        )}
-      </nav>
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
 
-      {/* Mobile Menu Button */}
-      <div className="ml-auto md:hidden">
-        <Button variant="ghost" size="icon" onClick={toggleMenu} aria-label="Toggle menu">
-          {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </Button>
+        {/* Desktop Navigation */}
+        <nav className="hidden lg:flex gap-4">
+          {allItems.map((item) => (
+            <Link key={item.label} href={item.href} className="text-sm font-medium hover:underline underline-offset-4">
+              {item.label}
+            </Link>
+          ))}
+          {isLoggedIn && (
+            <form action="/api/auth/signout" method="post">
+              <Button variant="outline" size="sm" type="submit">
+                Sign Out
+              </Button>
+            </form>
+          )}
+        </nav>
       </div>
-
-      {/* Mobile Navigation */}
-      {isMenuOpen && (
-        <div className="fixed inset-0 top-14 z-50 bg-background md:hidden">
-          <nav className="flex flex-col p-4">
-            {allItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`py-3 text-lg font-medium ${pathname === item.href ? "text-primary" : ""}`}
-                onClick={closeMenu}
-              >
-                {item.label}
-              </Link>
-            ))}
-
-            {showAuth && isLoggedIn && (
-              <form action="/auth/signout" method="post" className="mt-4">
-                <Button variant="outline" type="submit" className="w-full">
-                  Sign Out
-                </Button>
-              </form>
-            )}
-          </nav>
-        </div>
-      )}
     </header>
   )
 }
