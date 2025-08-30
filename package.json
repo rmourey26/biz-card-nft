@@ -55,7 +55,7 @@
     "input-otp": "1.4.1",
     "ipfs-http-client": "latest",
     "lucide-react": "^0.454.0",
-    "next": "15.2.4",
+    "next": "15.4.7",
     "next-themes": "latest",
     "next-transpile-modules": "latest",
     "qrcode.react": "latest",
